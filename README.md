@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Memory Sederhana</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #2c3e50;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            color: white;
+        }
+
+        h1 {
+            margin-bottom: 10px;
+        }
+
+        .info {
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+        }
+
+        /* Container untuk grid kartu */
+        .game-container {
+            display: grid;
+            grid-template-columns: repeat(4, 100px); /* 4 kolom */
+            gap: 10px;
+            perspective: 1000px; /* Efek 3D */
+        }
+
+        /* Styling Kartu */
+        .card {
+            width: 100px;
+            height: 100px;
+            position: relative;
+            cursor: pointer;
+            transform-style: preserve-3d;
+            transition: transform 0.5s;
+        }
+
+        /* Efect klik (kartu terbuka) */
+        .card.flip {
+            transform: rotateY(180deg);
+        }
+
+        /* Sisi Depan dan Belakang Kartu */
+        .front, .back {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            backface-visibility: hidden; /* Menyembunyikan sisi sebaliknya */
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        /* Sisi Depan (Gambar/Emoji) - Awalnya disembunyikan */
+        .front {
+            background-color: #ecf0f1;
+            transform: rotateY(180deg);
+        }
+
+        /* Sisi Belakang (Pattern) - Yang terlihat pertama kali */
+        .back {
+            background-color: #3498db;
+            background-image: linear-gradient(135deg, #2980b9 25%, transparent 25%), 
+                              linear-gradient(225deg, #2980b9 25%, transparent 25%), 
+                              linear-gradient(45deg, #2980b9 25%, transparent 25%), 
+                              linear-gradient(315deg, #2980b9 25%, transparent 25%);
+            background-position: 10px 0, 10px 0, 0 0, 0 0;
+            background-size: 20px 20px;
+            background-repeat: repeat;
+        }
+
+        /* Tombol Reset */
+        .reset-btn {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 1rem;
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .reset-btn:hover {
+            background-color: #c0392b;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Game Memory</h1>
+    <div class="info">Pergerakan: <span id="moves">0</span></div>
+
+    <div class="game-container" id="game-board">
+        <!-- Kartu akan dihasilkan oleh JavaScript -->
+    </div>
+
+    <button class="reset-btn" onclick="restartGame()">Main Lagi</button>
+
+    <script>
+        const gameBoard = document.getElementById('game-board');
+        const movesDisplay = document.getElementById('moves');
+
+        // GANTI INI JIKA INGIN MENGGUNAKAN GAMBAR ASLI (lihat penjelasan di bawah)
+        // Untuk saat ini kita menggunakan emoji sebagai placeholder gambar
+        const symbols = ['🍎', '🍌', '🍇', '🍉', '🍒', '🍓', '🍍', '🥝'];
+        
+        // Menggandakan array untuk membuat pasangan (8 item * 2 = 16 kartu)
+        let cards = [...symbols, ...symbols];
+        
+        let hasFlippedCard = false;
+        let lockBoard = false;
+        let firstCard, secondCard;
+        let moves = 0;
+        let matchedPairs = 0;
+
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function createBoard() {
+            gameBoard.innerHTML = ''; // Bersihkan board
+            shuffle(cards);
+            
+            cards.forEach(symbol => {
+                const card = document.createElement('div');
+                card.classList.add('card');
+                card.dataset.symbol = symbol;
+
+                // Bagian Depan (Gambar/Emoji)
+                const frontFace = document.createElement('div');
+                frontFace.classList.add('front');
+                frontFace.textContent = symbol;
+
+                // Bagian Belakang (Pattern)
+                const backFace = document.createElement('div');
+                backFace.classList.add('back');
+
+                card.appendChild(frontFace);
+                card.appendChild(backFace);
+                
+                card.addEventListener('click', flipCard);
+                gameBoard.appendChild(card);
+            });
+        }
+
+        function flipCard() {
+            if (lockBoard) return;
+            if (this === firstCard) return;
+
+            this.classList.add('flip');
+
+            if (!hasFlippedCard) {
+                // Klik pertama
+                hasFlippedCard = true;
+                firstCard = this;
+                return;
+            }
+
+            // Klik kedua
+            secondCard = this;
+            incrementMoves();
+            checkForMatch();
+        }
+
+        function checkForMatch() {
+            let isMatch = firstCard.dataset.symbol === secondCard.dataset.symbol;
+
+            isMatch ? disableCards() : unflipCards();
+        }
+
+        function disableCards() {
+            // Kartu cocok, hilangkan event listener agar tidak bisa diklik lagi
+            firstCard.removeEventListener('click', flipCard);
+            secondCard.removeEventListener('click', flipCard);
+
+            matchedPairs++;
+            resetBoard();
+
+            // Cek Kemenangan
+            if (matchedPairs === symbols.length) {
+                setTimeout(() => alert(`Selamat! Anda menang dalam ${moves} pergerakan!`), 500);
+            }
+        }
+
+        function unflipCards() {
+            lockBoard = true;
+
+            setTimeout(() => {
+                firstCard.classList.remove('flip');
+                secondCard.classList.remove('flip');
+                resetBoard();
+            }, 1000); // Tunda 1 detik sebelum kembali tertutup
+        }
+
+        function resetBoard() {
+            [hasFlippedCard, lockBoard] = [false, false];
+            [firstCard, secondCard] = [null, null];
+        }
+
+        function incrementMoves() {
+            moves++;
+            movesDisplay.textContent = moves;
+        }
+
+        function restartGame() {
+            moves = 0;
+            matchedPairs = 0;
+            movesDisplay.textContent = moves;
+            [hasFlippedCard, lockBoard] = [false, false];
+            [firstCard, secondCard] = [null, null];
+            createBoard();
+        }
+
+        // Mulai game saat halaman dimuat
+        createBoard();
+    </script>
+</body>
+</html>
